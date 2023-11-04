@@ -73,7 +73,7 @@ int main()
         }
     }
 
-    sf::RenderWindow window(sf::VideoMode(windowX, windowY), "SFML works!");
+    sf::RenderWindow window(sf::VideoMode(windowX, windowY), "Assignment 1");
     window.setFramerateLimit(60);
 
     
