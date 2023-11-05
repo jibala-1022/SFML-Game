@@ -1,8 +1,10 @@
-Window 800 600
-Fonts JetBrainsMono-Medium.ttf 18 255 255 255
-Circle CGreen 100 100 -0.03 0.02 0 255 0 50
-Circle CBlue 200 200 0.02 0.04 0 0 255 100
-Circle CPurple 300 300 -0.02 -0.01 255 0 255 75
-Rectangle RRed 200 200 0.1 0.15 255 0 0 50 25
-Rectangle RGrey 300 250 -0.02 0.02 100 100 100 50 100
-Rectangle RTeal 25 100 -0.02 -0.02 0 255 255 100 100
+Window 1280 720 60 0
+Fonts fonts/JetBrainsMono-Medium.ttf 24 255 255 255
+Player 32 32 5 5 5 5 255 0 0 4 8
+Enemy 32 32 3 3 255 255 255 2 3 8 90 60
+Bullet 10 10 20 255 255 255 255 255 255 2 20 90
+Window W H FL FS
+Fonts F S R G B
+Player SR CR S FR FG FB OR OG OB OT V
+Enemy SR CR SMIN SMAX OR OG OB OT VMIN VMAX L SI
+Bullet SR CR S FR FG FB OR OG OB OT V L
