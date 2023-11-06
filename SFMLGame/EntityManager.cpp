@@ -20,12 +20,12 @@ void EntityManager::update()
 	}
 }
 
-const EntityVec& EntityManager::getEntities()
+EntityVec& EntityManager::getEntities()
 {
 	return m_entities;
 }
 
-const EntityVec& EntityManager::getEntities(const std::string& tag)
+EntityVec& EntityManager::getEntities(const std::string& tag)
 {
 	return m_entityMap[tag];
 }
@@ -41,10 +41,7 @@ std::shared_ptr<Entity> EntityManager::addEntity(const std::string& tag)
 
 void EntityManager::removeDeadEntities(EntityVec& entityVec)
 {
-	std::remove_if(entityVec.begin(), entityVec.end(), [](std::shared_ptr<Entity>& entity) { return (!entity->isActive()); });
-
-	/*for (auto currEntity = entityVec.begin(); currEntity != entityVec.end(); currEntity++)
-	{
-
-	}*/
+	entityVec.erase(std::remove_if(entityVec.begin(), entityVec.end(), [](const std::shared_ptr<Entity>& entity) {
+		return !entity->isActive(); 
+		}), entityVec.end());
 }

@@ -21,7 +21,7 @@ class Game
 	bool m_paused = false;
 	bool m_running = true;
 
-	std::shared_ptr<Entity> m_player;
+	std::shared_ptr<Entity> m_player = nullptr;
 	
 	void init(const std::string& config);
 	void setPaused(bool paused);

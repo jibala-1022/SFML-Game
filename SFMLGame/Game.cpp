@@ -3,6 +3,9 @@
 #include <fstream>
 #include <cmath>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 Game::Game(const std::string& config)
 {
 	init(config);
@@ -17,15 +20,10 @@ void Game::init(const std::string& config)
 
 	std::ifstream fin(config);
 	fin >> setting >> width >> height >> limit >> style;
-	std::cout << setting << " " << width << " " << height << " " << limit << " " << style << std::endl;
 	fin >> setting >> fontPath >> fontSize >> fR >> fG >> fB;
-	std::cout << setting << " " << fontPath << " " << fontSize << " " << fR << " " << fG << " " << fB << std::endl;
 	fin >> setting >> m_playerConfig.SR >> m_playerConfig.CR >> m_playerConfig.S >> m_playerConfig.FR >> m_playerConfig.FG >> m_playerConfig.FB >> m_playerConfig.OR >> m_playerConfig.OG >> m_playerConfig.OB >> m_playerConfig.OT >> m_playerConfig.V;
-	std::cout << setting << " " << m_playerConfig.SR << " " << m_playerConfig.CR << " " << m_playerConfig.S << " " << m_playerConfig.FR << " " << m_playerConfig.FG << " " << m_playerConfig.FB << " " << m_playerConfig.OR << " " << m_playerConfig.OG << " " << m_playerConfig.OB << " " << m_playerConfig.OT << " " << m_playerConfig.V << std::endl;
 	fin >> setting >> m_enemyConfig.SR >> m_enemyConfig.CR >> m_enemyConfig.SMIN >> m_enemyConfig.SMAX >> m_enemyConfig.OR >> m_enemyConfig.OG >> m_enemyConfig.OB >> m_enemyConfig.OT >> m_enemyConfig.VMIN >> m_enemyConfig.VMAX >> m_enemyConfig.L >> m_enemyConfig.SI;
-	std::cout << setting << " " << m_enemyConfig.SR << " " << m_enemyConfig.CR << " " << m_enemyConfig.SMIN << " " << m_enemyConfig.SMAX << " " << m_enemyConfig.OR << " " << m_enemyConfig.OG << " " << m_enemyConfig.OB << " " << m_enemyConfig.OT << " " << m_enemyConfig.VMIN << " " << m_enemyConfig.VMAX << " " << m_enemyConfig.L << " " << m_enemyConfig.SI << std::endl;
 	fin >> setting >> m_bulletConfig.SR >> m_bulletConfig.CR >> m_bulletConfig.S >> m_bulletConfig.FR >> m_bulletConfig.FG >> m_bulletConfig.FB >> m_bulletConfig.OR >> m_bulletConfig.OG >> m_bulletConfig.OB >> m_bulletConfig.OT >> m_bulletConfig.V  >> m_bulletConfig.L;
-	std::cout << setting << " " << m_bulletConfig.SR << " " << m_bulletConfig.CR << " " << m_bulletConfig.S << " " << m_bulletConfig.FR << " " << m_bulletConfig.FG << " " << m_bulletConfig.FB << " " << m_bulletConfig.OR << " " << m_bulletConfig.OG << " " << m_bulletConfig.OB << " " << m_bulletConfig.OT << " " << m_bulletConfig.V << " " << m_bulletConfig.L << std::endl;
 
 
 	if (!m_font.loadFromFile(fontPath))
@@ -57,6 +55,7 @@ void Game::run()
 		{
 			sEnemySpawner();
 			sMovement();
+			sLifespan();
 			sCollision();
 
 			m_currentFrame++;
@@ -74,12 +73,16 @@ void Game::setPaused(bool paused)
 
 void Game::spawnPlayer()
 {
-	auto player = m_entityManager.addEntity("player");
-
 	float halfWidth = m_window.getSize().x / 2.0f;
 	float halfHeight = m_window.getSize().y / 2.0f;
 
-	std::cout << halfWidth << " " << halfHeight << std::endl;
+	if (m_player)
+	{
+		m_player->cTransform = std::make_shared<CTransform>(Vec2(halfWidth, halfHeight), Vec2(0, 0), 0);
+		return;
+	}
+
+	auto player = m_entityManager.addEntity("player");
 
 	player->cTransform = std::make_shared<CTransform>(Vec2(halfWidth, halfHeight), Vec2(0, 0), 0);
 
@@ -99,8 +102,14 @@ void Game::spawnEnemy()
 	int width = m_window.getSize().x;
 	int height = m_window.getSize().y;
 
-	float positionX = m_enemyConfig.CR + (float)rand() / RAND_MAX * (width - 2 * m_enemyConfig.CR);
-	float positionY = m_enemyConfig.CR + (float)rand() / RAND_MAX * (height - 2 * m_enemyConfig.CR);
+	Vec2 playerPos = m_player->cTransform->position;
+	float playerCR = m_player->cCollision->radius;
+
+	float positionX, positionY;
+	do {
+		positionX = m_enemyConfig.CR + (float)rand() / RAND_MAX * (width - 2 * m_enemyConfig.CR);
+		positionY = m_enemyConfig.CR + (float)rand() / RAND_MAX * (height - 2 * m_enemyConfig.CR);
+	} while ((positionX - playerPos.x) * (positionX - playerPos.x) + (positionY - playerPos.y) * (positionY - playerPos.y) <= 4.0f * playerCR * playerCR);
 
 	float angle = (float)rand() / RAND_MAX * 360;
 
@@ -119,11 +128,44 @@ void Game::spawnEnemy()
 	enemy->cShape = std::make_shared<CShape>(m_enemyConfig.SR, points, sf::Color(fillR, fillG, fillB), sf::Color(m_enemyConfig.OR, m_enemyConfig.OG, m_enemyConfig.OB), m_enemyConfig.OT);
 
 	enemy->cCollision = std::make_shared<CCollision>(m_enemyConfig.CR);
+
+	enemy->cScore = std::make_shared<CScore>(points * 100);
 }
 
 void Game::spawnSmallEnemy(std::shared_ptr<Entity> enemy)
 {
+	int points = enemy->cShape->circle.getPointCount();
 
+	sf::Color fill = enemy->cShape->circle.getFillColor();
+
+	Vec2 position = enemy->cTransform->position;
+
+	float speed = enemy->cTransform->velocity.length();
+
+	float angle = enemy->cTransform->angle;
+
+	float dAngleRad = 2.0f * M_PI / points;
+	float angleRad = 2.0f * M_PI * angle / 360.0f;
+
+	for (int i = 0; i < points; i++)
+	{
+		auto enemy = m_entityManager.addEntity("smallenemy");
+
+		float dirAngleRad = angleRad + i * dAngleRad;
+
+		Vec2 direction(cos(dirAngleRad), sin(dirAngleRad));
+		Vec2 velocity = direction * speed;
+
+		enemy->cTransform = std::make_shared<CTransform>(position, velocity, angle);
+
+		enemy->cShape = std::make_shared<CShape>(m_enemyConfig.SR / 2.0f, points, fill, sf::Color(m_enemyConfig.OR, m_enemyConfig.OG, m_enemyConfig.OB), m_enemyConfig.OT);
+
+		enemy->cCollision = std::make_shared<CCollision>(m_enemyConfig.CR / 2.0f);
+
+		enemy->cScore = std::make_shared<CScore>(points * 200);
+
+		enemy->cLifespan = std::make_shared<CLifespan>(m_enemyConfig.L);
+	}
 }
 
 void Game::spawnBullet(std::shared_ptr<Entity> player, const Vec2& mousePos)
@@ -172,18 +214,17 @@ void Game::sMovement()
 		if (entity->cTransform)
 		{
 			entity->cTransform->position += entity->cTransform->velocity;
-			if (entity->tag() == "player")
-			{
-				std::cout << entity->cTransform->velocity.x << " " << entity->cTransform->velocity.y << std::endl;
-				std::cout << entity->cTransform->position.x << " " << entity->cTransform->position.y << std::endl;
-			}
 		}
 	}
 }
 
+
 void Game::sUserInput()
 {
 	sf::Event event;
+
+	m_player->cInput->shoot = false;
+
 	while (m_window.pollEvent(event))
 	{
 		if (event.type == sf::Event::Closed)
@@ -203,19 +244,15 @@ void Game::sUserInput()
 				break;
 			case sf::Keyboard::W :
 				m_player->cInput->up = true;
-				std::cout << "W pressed\n";
 				break;
 			case sf::Keyboard::A :
 				m_player->cInput->left = true;
-				std::cout << "A pressed\n";
 				break;
 			case sf::Keyboard::S :
 				m_player->cInput->down = true;
-				std::cout << "S pressed\n";
 				break;
 			case sf::Keyboard::D :
 				m_player->cInput->right = true;
-				std::cout << "D pressed\n";
 				break;
 			default:
 				break;
@@ -228,19 +265,15 @@ void Game::sUserInput()
 			{
 			case sf::Keyboard::W :
 				m_player->cInput->up = false;
-				std::cout << "W released\n";
 				break;
 			case sf::Keyboard::A :
 				m_player->cInput->left = false;
-				std::cout << "A released\n";
 				break;
 			case sf::Keyboard::S :
 				m_player->cInput->down = false;
-				std::cout << "S released\n";
 				break;
 			case sf::Keyboard::D :
 				m_player->cInput->right = false;
-				std::cout << "D released\n";
 				break;
 			default:
 				break;
@@ -251,12 +284,11 @@ void Game::sUserInput()
 		{
 			if (event.mouseButton.button == sf::Mouse::Left)
 			{
-				std::cout << "Left mouse pressed at " << event.mouseButton.x << " " << event.mouseButton.y << std::endl;
+				m_player->cInput->shoot = true;
 				spawnBullet(m_player, Vec2(event.mouseButton.x, event.mouseButton.y));
 			}
 			if (event.mouseButton.button == sf::Mouse::Right)
 			{
-				std::cout << "Right mouse pressed at " << event.mouseButton.x << " " << event.mouseButton.y << std::endl;
 				spawnSpecialWeapon(m_player);
 			}
 		}
@@ -292,11 +324,15 @@ void Game::sRender()
 			entityCircle.setRotation(entity->cTransform->angle);
 
 			entity->cTransform->angle++;
+			if (entity->cTransform->angle >= 360.0f)
+			{
+				entity->cTransform->angle -= 360.0f;
+			}
 
 			sf::Color FC = entityCircle.getFillColor();
 			sf::Color OC = entityCircle.getOutlineColor();
 
-			float opacity = (entity->cLifespan) ? entity->cLifespan->remaining / entity->cLifespan->total * 255.0f : 255.0f;
+			float opacity = (entity->cLifespan) ? 255.0f * entity->cLifespan->remaining / entity->cLifespan->total : 255.0f;
 
 			entityCircle.setFillColor(sf::Color(FC.r, FC.g, FC.b, opacity));
 			entityCircle.setOutlineColor(sf::Color(OC.r, OC.g, OC.b, opacity));
@@ -305,6 +341,12 @@ void Game::sRender()
 		}
 	}
 
+	sf::Vector2u windowSize = m_window.getSize();
+	sf::FloatRect bounds = m_text.getLocalBounds();
+
+	m_text.setString("Score: " + std::to_string(m_score));
+	m_text.setPosition(windowSize.x - (2.0f * bounds.left + bounds.width), windowSize.y - (2.0f * bounds.top + bounds.height));
+	m_window.draw(m_text);
 	m_window.display();
 }
 
@@ -322,33 +364,99 @@ void Game::sCollision()
 {
 	Vec2 windowSize(m_window.getSize().x, m_window.getSize().y);
 
-	/*for (auto& entity : m_entityManager.getEntities())
-	{
-		if (entity->tag() == "enemy")
+	auto checkCollisionBoundary = [windowSize](std::shared_ptr<Entity>& entity)
 		{
-			float cRadius = entity->cCollision->radius;
-			Vec2 pos = entity->cTransform->position;
-			Vec2 vel = entity->cTransform->velocity;
-			if (pos.x < cRadius)
+			Vec2& entityPos = entity->cTransform->position;
+			Vec2& entityVel = entity->cTransform->velocity;
+			float entityCR = entity->cCollision->radius;
+
+			if (entityPos.x < entityCR)
 			{
-				pos.x = cRadius;
-				vel.x *= -1;
+				entityPos.x = entityCR;
+				entityVel.x *= -1.0f;
 			}
-			else if (pos.x > windowSize.x - cRadius)
+			else if (entityPos.x > windowSize.x - entityCR)
 			{
-				pos.x = windowSize.x - cRadius;
-				vel.x *= -1;
+				entityPos.x = windowSize.x - entityCR;
+				entityVel.x *= -1.0f;
 			}
-			if (pos.y < cRadius)
+			if (entityPos.y < entityCR)
 			{
-				pos.y = cRadius;
-				vel.y *= -1;
+				entityPos.y = entityCR;
+				entityVel.y *= -1.0f;
 			}
-			else if (pos.y > windowSize.y - cRadius)
+			else if (entityPos.y > windowSize.y - entityCR)
 			{
-				pos.y = windowSize.y - cRadius;
-				vel.y *= -1;
+				entityPos.y = windowSize.y - entityCR;
+				entityVel.y *= -1.0f;
+			}
+		};
+
+	auto checkCollisionDestroy = [](std::shared_ptr<Entity>& entityA, std::shared_ptr<Entity>& entityB) -> bool
+		{
+			float crA = entityA->cCollision->radius;
+			float crB = entityB->cCollision->radius;
+
+			Vec2 displacement = entityB->cTransform->position - entityA->cTransform->position;
+
+			return (displacement.x * displacement.x + displacement.y * displacement.y < (crA + crB) * (crA + crB));
+		};
+
+
+
+	for (auto& enemy : m_entityManager.getEntities("enemy"))
+	{
+		if (checkCollisionDestroy(m_player, enemy))
+		{
+			m_score /= 2;
+			spawnPlayer();
+
+			enemy->destroy();
+		}
+	}
+
+	for (auto& smallenemy : m_entityManager.getEntities("smallenemy"))
+	{
+		if (checkCollisionDestroy(m_player, smallenemy))
+		{
+			m_score /= 2;
+			spawnPlayer();
+
+			smallenemy->destroy();
+		}
+	}
+
+	for (auto& bullet : m_entityManager.getEntities("bullet"))
+	{
+		for (auto& enemy : m_entityManager.getEntities("enemy"))
+		{
+			if (checkCollisionDestroy(bullet, enemy))
+			{
+				m_score += enemy->cScore->score;
+				spawnSmallEnemy(enemy);
+
+				bullet->destroy();
+				enemy->destroy();
 			}
 		}
-	}*/
+
+		for (auto& smallenemy : m_entityManager.getEntities("smallenemy"))
+		{
+			if (checkCollisionDestroy(bullet, smallenemy))
+			{
+				m_score += smallenemy->cScore->score;
+
+				bullet->destroy();
+				smallenemy->destroy();
+			}
+		}
+	}
+
+	checkCollisionBoundary(m_player);
+
+	for (auto& enemy : m_entityManager.getEntities("enemy"))
+	{
+		checkCollisionBoundary(enemy);
+	}
+
 }

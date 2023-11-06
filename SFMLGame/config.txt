@@ -3,6 +3,7 @@ Fonts fonts/JetBrainsMono-Medium.ttf 24 255 255 255
 Player 32 32 5 5 5 5 255 0 0 4 8
 Enemy 32 32 3 3 255 255 255 2 3 8 90 60
 Bullet 10 10 20 255 255 255 255 255 255 2 20 90
+
 Window W H FL FS
 Fonts F S R G B
 Player SR CR S FR FG FB OR OG OB OT V
