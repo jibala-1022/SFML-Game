@@ -40,6 +40,8 @@ void Game::init(const std::string& config)
 	m_window.create(sf::VideoMode(width, height), "Assignment 2", (style) ? sf::Style::Fullscreen : sf::Style::Default);
 	m_window.setFramerateLimit(limit);
 
+	srand(time(nullptr));
+
 	spawnPlayer();
 }
 
